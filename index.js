@@ -14,7 +14,7 @@ const { join } = require("path");
 const useragent = require("express-useragent");
 const _ = require("lodash");
 
-const { ApiLog } = require("./models/api_logs");
+const { ApiLog } = require("./models");
 
 const HOST = process.env.HOST_URL || "localhost";
 const PORT = process.env.HOST_PORT || 3000;
@@ -60,26 +60,26 @@ morgan.token("response-json", (req, res) => {
   return JSON.stringify(res.locals.responseJson);
 });
 
-// app.use(
-//   morgan(async (tokens, req, res) => {
-//     const api = await ApiLog.create({
-//       method: tokens.method(req, res) || null,
-//       url: tokens.url(req, res) || null,
-//       user_id: req?.user?.user_id,
-//       status: tokens.status(req, res) || null,
-//       date: tokens.date(req, res) || null,
-//       content_length: tokens.res(req, res, "content-length") || null,
-//       time: tokens["response-time"](req, res) + "ms" || null,
-//       request: JSON.stringify(req?.body || req?.query) || null,
-//       response: tokens["response-json"](req, res) || null,
-//     });
-//     if (api) {
-//       console.log("Log successfully created");
-//     } else {
-//       console.log("Something wrong while create log!");
-//     }
-//   })
-// );
+app.use(
+  morgan(async (tokens, req, res) => {
+    const api = await ApiLog.create({
+      method: tokens.method(req, res) || null,
+      url: tokens.url(req, res) || null,
+      user_id: req?.user?.user_id,
+      status: tokens.status(req, res) || null,
+      date: tokens.date(req, res) || null,
+      content_length: tokens.res(req, res, "content-length") || null,
+      time: tokens["response-time"](req, res) + "ms" || null,
+      request: JSON.stringify(req?.body || req?.query) || null,
+      response: tokens["response-json"](req, res) || null,
+    });
+    if (api) {
+      console.log("Log successfully created");
+    } else {
+      console.log("Something wrong while create log!");
+    }
+  })
+);
 
 const v1Route = require("./routes/v1");
 

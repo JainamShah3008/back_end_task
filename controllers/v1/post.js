@@ -1,52 +1,68 @@
 const { Post } = require("../../models");
-
 const { paginate } = require("../../utils/pagination");
-
+const { uploadToImageKit } = require("../../utils/upload");
 const { createLogFile } = require("../../utils/create_logs");
+const { parseDate } = require("../../utils/common");
 
 const file_name = "post";
 const file_path = "v1_controller";
 
 module.exports.createPost = async (req, res) => {
   try {
-    const { id } = req?.user;
-
+    const { id } = req.user;
     const { post_name, description, tags } = req.body;
 
+    //Parse tags safely
     let parsedTags = [];
-
-    // Convert tags string to array
     if (tags) {
       try {
-        parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
-        if (!Array.isArray(parsedTags)) parsedTags = [parsedTags];
-      } catch (e) {
-        parsedTags = [];
+        parsedTags = typeof tags === "string" ? JSON.parse(tags) : [...tags];
+
+        if (!Array.isArray(parsedTags)) {
+          parsedTags = [parsedTags];
+        }
+      } catch (err) {
+        return res.status(400).json({
+          status: false,
+          message: "Tags must be a valid JSON array",
+        });
       }
     }
 
+    //Image Upload to ImageKit
     let imageUrl = null;
 
-    // If image is uploaded
     if (req.file) {
-      imageUrl = `${process.env.HOST_URL}/${req.file.path.replace(/\\/g, "/")}`;
+      const uploadResult = await uploadToImageKit(req.file.path);
+
+      if (!uploadResult.status) {
+        return res.status(400).json({
+          status: false,
+          message: "Image upload failed, try again",
+        });
+      }
+
+      imageUrl = uploadResult.url;
     }
 
-    const post = await Post.create({
+    //Create Post Document
+    const newPost = await Post.create({
       userId: id,
       postName: post_name,
       description,
       tags: parsedTags,
       imageUrl,
+      uploadTime: new Date(),
     });
 
     return res.status(201).json({
       status: true,
-      data: post,
+      data: newPost,
       message: "Post created successfully",
     });
   } catch (error) {
     await createLogFile("createPost", error, file_name, file_path);
+
     return res.status(500).json({
       status: false,
       message: error.message || "Server error",
@@ -75,19 +91,37 @@ module.exports.getPosts = async (req, res) => {
       ];
     }
 
-    //Date filter
+    // Date filter
     if (startDate || endDate) {
-      filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
-      if (endDate) filter.createdAt.$lte = new Date(endDate);
+      filter.uploadTime = {};
+
+      const start = parseDate(startDate);
+      const end = parseDate(endDate);
+
+      if (start) filter.uploadTime.$gte = start;
+
+      if (end) {
+        end.setHours(23, 59, 59, 999); // include whole day
+        filter.uploadTime.$lte = end;
+      }
     }
 
-    //Tag filter
+    // Tag filter
     if (tags) {
       let parsedTags = [];
+
       try {
-        parsedTags = typeof tags === "string" ? JSON.parse(tags) : tags;
-      } catch {}
+        // If tags is JSON array → ["a","b"]
+        if (tags.startsWith("[") && tags.endsWith("]")) {
+          parsedTags = JSON.parse(tags);
+        }
+        // If tags is single string → "jain"
+        else {
+          parsedTags = [tags];
+        }
+      } catch {
+        parsedTags = [tags]; // fallback
+      }
 
       if (parsedTags.length > 0) {
         filter.tags = { $in: parsedTags };
@@ -100,7 +134,6 @@ module.exports.getPosts = async (req, res) => {
       limit,
       sort: { createdAt: -1 },
     });
-    console.log("🚀 ~ post.js:103 ~ result:", result)
 
     return res.status(200).json({
       status: true,

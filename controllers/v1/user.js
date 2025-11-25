@@ -46,7 +46,6 @@ module.exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({
