@@ -14,20 +14,21 @@ const { join } = require("path");
 const useragent = require("express-useragent");
 const _ = require("lodash");
 
+const rateLimiter = require("./middlewares/rate_limiter");
+const errorHandler = require("./middlewares/error_handler");
 const { ApiLog } = require("./models");
 
 const HOST = process.env.HOST_URL || "localhost";
 const PORT = process.env.HOST_PORT || 3000;
 
-const publicFolders = [
-  join(process.cwd(), "uploads", ".tmp"),
-  join(process.cwd(), "uploads", "compress_files"),
-];
+const publicFolders = [join(process.cwd(), "uploads", ".tmp")];
 
 // Serve static files from each public folder
 publicFolders.forEach((publicFolder) => {
   app.use(express.static(publicFolder));
 });
+
+app.use(rateLimiter);
 
 // disable `X-Powered-By` header that reveals information about the server
 app.disable("x-powered-by");
@@ -88,6 +89,8 @@ app.use("/v1", v1Route);
 app.use("/", (req, res) => {
   return res.json({ message: "Welcome to Backend Test Project." });
 });
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://${HOST}:${PORT}`);
