@@ -72,6 +72,7 @@ module.exports.createPost = async (req, res) => {
 
 module.exports.getPosts = async (req, res) => {
   try {
+    const { id } = req.user;
     const {
       searchText = "",
       startDate,
@@ -82,6 +83,11 @@ module.exports.getPosts = async (req, res) => {
     } = req.query;
 
     const filter = {};
+
+    // Filter by user_id if provided
+    if (id) {
+      filter.userId = id;
+    }
 
     //Search by text
     if (searchText) {
